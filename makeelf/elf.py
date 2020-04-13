@@ -5,6 +5,49 @@ from makeelf.elfstruct import *
 from makeelf.elfsect import *
 import os
 
+class _Rela:
+    """Helper class for handling a relocation table"""
+
+    def __init__(self, b=None):
+        # init list
+        self.lst = []
+
+        # if bytes provided
+        if b is not None:
+            # convert b to list of Elf32_Rela
+            while len(b) > 0:
+                sym, b = Elf32_Rela.from_bytes(b)
+                self.lst.append(sym)
+
+    def __str__(self):
+        return str(self.lst)
+
+    def __repr__(self):
+        return repr(self.lst)
+
+    def __bytes__(self):
+        b = b''
+        for el in self.lst:
+            b += bytes(el)
+        return b
+
+    def __len__(self):
+        return len(bytes(self))
+
+    def append(self, rela):
+        """Appends entry to relocation table
+
+        Returns index of newly appended relocation"""
+        assert isinstance(rela, Elf32_Rela)
+
+        # store id of appended header
+        ret = len(self.lst)
+
+        self.lst.append(rela)
+
+        return ret
+
+
 class _Strtab:
     """Helper class for creating sections of type SHT_STRTAB
 
@@ -324,7 +367,20 @@ class ELF:
         if isinstance(sec_name, str):
             sec_name = bytes(sec_name, 'utf-8')
 
-        if sec_name == b'.strtab':
+        if sec_name.startswith(b'.rela.'):
+            # find id of corresponding section
+            section_hdr, section = self.get_section_by_name(sec_name[5:])
+            section_id = self.Elf.Shdr_table.index(section_hdr)
+
+            # find id of .symtab
+            symtab_hdr, symtab = self.get_section_by_name('.symtab')
+            symtab_id = self.Elf.Shdr_table.index(symtab_hdr)
+
+            # create new relocation table
+            return self._append_section(sec_name, _Rela(), 0,
+                    sh_type=SHT.SHT_RELA, sh_link=symtab_id, sh_info=section_id,
+                    sh_addralign=4, sh_entsize=len(Elf32_Rela()))
+        elif sec_name == b'.strtab':
             # create new string table
             return self._append_section(sec_name, _Strtab(), 0,
                     sh_type=SHT.SHT_STRTAB)
@@ -389,6 +445,24 @@ class ELF:
         ret = len(self.Elf.Phdr_table)
         self.Elf.Phdr_table.append(Phdr)
         return ret
+
+    # Append new relocation to relocation table
+    def append_reloc(self, sec_name, *args, **kwargs):
+
+        # find .rela.*, relocation will be stored there
+        try:
+            rela_hdr, rela = self.get_section_by_name(b'.rela' + sec_name)
+        except:
+            # TODO: exception driven development
+            # reloc table not found, create
+            self.append_special_section(b'.rela' + sec_name)
+            rela_hdr, rela = self.get_section_by_name(b'.rela' + sec_name)
+
+        # create new relocation structure
+        entry = Elf32_Rela.make(*args, **kwargs, little=self.little)
+
+        # add relocation to table
+        rela_id = rela.append(entry)
 
     ## Append new symbol to symbol table
     #  \details Creates symbol table, if necessary, adds new symbol name to

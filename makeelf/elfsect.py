@@ -194,6 +194,58 @@ class Elf32_DynTests(unittest.TestCase):
         self.assertEqual(expected, actual)
 
 
+## \class Elf32_Rela
+#  \brief Relocation entry
+class Elf32_Rela:
+
+    def __init__(self, r_offset=0, r_info=0, r_addend=0, little=False):
+        ## The byte offset from the beginning of the section at which to apply the relocation action
+        self.r_offset = r_offset
+        ## The symbol table index with respect to which the relocation must be made, and the type of relocation to apply
+        self.r_info = r_info
+        ## A constant addend used to compute the value to be stored into the relocatable field
+        self.r_addend = r_addend
+
+        ## Header endianness indicator
+        #  \details Is true, if header values are meant to be stored as
+        #  little-endian or false otherwise
+        self.little = little # should not be used, but for consistency set it
+
+    def __str__(self):
+        return '{r_offset=%d, r_info=%s, r_addend=%d}' % \
+                (self.r_offset, self.r_info, self.r_addend)
+
+    def __repr__(self):
+        return '%s(%s, %s, %s, %s)' % (type(self).__name__,
+                self.r_offset, self.r_info, self.r_addend)
+
+    def __bytes__(self):
+        r_offset = uint32(self.r_offset, little=self.little)
+        r_info = uint32(self.r_info, little=self.little)
+        r_addend = uint32(self.r_addend, little=self.little) # FIXME
+
+        return bytes(r_offset) + bytes(r_info) + bytes(r_addend)
+
+    def from_bytes(b, little=False):
+        r_offset, b = uint32.from_bytes(b, little)
+        r_info, b = uint32.from_bytes(b, little)
+        r_addend, b = uint32.from_bytes(b, little)
+
+        return Elf32_Phdr(r_offset=r_offset.integer, r_info=r_info.integer,
+                r_addend=r_addend.integer,
+                little=little), b
+
+    @staticmethod
+    def make(r_offset, type, sym, r_addend, little):
+        assert type >= 0 and type < 2**8
+        assert sym >= 0 and sym < 2**24
+
+        return Elf32_Rela(r_offset, (sym << 8) + type, r_addend, little=little)
+
+    def __len__(self):
+        return len(bytes(self))
+
+
 ## \class STB
 #  \brief Symbol Table Binding
 class STB(Enum):
