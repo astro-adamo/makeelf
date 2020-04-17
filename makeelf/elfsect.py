@@ -4,6 +4,7 @@
 import unittest
 from makeelf.type.enum import Enum
 from makeelf.type.align import align,unalign
+from makeelf.type.sint32 import sint32
 from makeelf.type.uint32 import uint32
 from makeelf.type.uint16 import uint16
 from makeelf.type.uint8 import uint8
@@ -222,7 +223,7 @@ class Elf32_Rela:
     def __bytes__(self):
         r_offset = uint32(self.r_offset, little=self.little)
         r_info = uint32(self.r_info, little=self.little)
-        r_addend = uint32(self.r_addend, little=self.little) # FIXME
+        r_addend = sint32(self.r_addend, little=self.little)
 
         return bytes(r_offset) + bytes(r_info) + bytes(r_addend)
 
